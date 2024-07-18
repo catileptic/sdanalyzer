@@ -1,5 +1,8 @@
 PWD = $(shell pwd)
 
+check:
+	black --check .
+
 clean:
 	rm -rf $(PWD)/build $(PWD)/dist $(PWD)/sdanalyzer.egg-info
 

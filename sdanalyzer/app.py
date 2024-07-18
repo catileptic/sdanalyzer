@@ -2,13 +2,21 @@
 import os
 import datetime
 from flask import Flask, render_template, request, redirect, jsonify, flash
-from peewee import Model, CharField, ForeignKeyField, DateTimeField, TextField, BooleanField, IntegerField
+from peewee import (
+    Model,
+    CharField,
+    ForeignKeyField,
+    DateTimeField,
+    TextField,
+    BooleanField,
+    IntegerField,
+)
 from playhouse.sqlite_ext import SqliteExtDatabase, JSONField
 from .forms import PhoneForm
 from .utils import get_db_path, SUSPICIOUS_PERMISSIONS
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config["SECRET_KEY"] = os.urandom(24)
 db = SqliteExtDatabase(get_db_path())
 
 
@@ -34,7 +42,7 @@ class Phone(Model):
 
 
 class Apk(Model):
-    owner = ForeignKeyField(Phone, backref='apks')
+    owner = ForeignKeyField(Phone, backref="apks")
     path = CharField()
     md5 = CharField()
     sha1 = CharField()
@@ -77,25 +85,30 @@ class Apk(Model):
                         "Suspicious Level"]
         """
         res = [
-            self.md5, self.sha1, self.sha256, self.package_name,
-            self.app_name, self.certificate_sha1]
-        res.append(self.certificate.get('subjectDN', ''))
-        res.append(self.certificate.get('issuerDN', ''))
-        res.append(self.certificate.get('serial', ''))
-        res.append(self.certificate.get('not_before', ''))
-        res.append(self.certificate.get('not_after', ''))
+            self.md5,
+            self.sha1,
+            self.sha256,
+            self.package_name,
+            self.app_name,
+            self.certificate_sha1,
+        ]
+        res.append(self.certificate.get("subjectDN", ""))
+        res.append(self.certificate.get("issuerDN", ""))
+        res.append(self.certificate.get("serial", ""))
+        res.append(self.certificate.get("not_before", ""))
+        res.append(self.certificate.get("not_after", ""))
         res.append(self.size)
         if self.vt_link:
             res.append(self.vt_link)
         else:
-            res.append('')
+            res.append("")
         if self.vt_positives is not None:
-            res.append('{}/{}'.format(self.vt_positives, self.vt_total))
+            res.append("{}/{}".format(self.vt_positives, self.vt_total))
         else:
-            res.append('')
+            res.append("")
         res.append("Yes" if self.frosting else "No")
         res.append("Yes" if self.has_dex else "No")
-        res.append(["Low", "Medium", "High"][self.suspicious_level-1])
+        res.append(["Low", "Medium", "High"][self.suspicious_level - 1])
         return res
 
     def to_json(self):
@@ -117,7 +130,7 @@ class Apk(Model):
             "frosting": self.frosting,
             "has_dex": self.has_dex,
             "dexes": self.dexes,
-            "suspicious_level": self.suspicious_level
+            "suspicious_level": self.suspicious_level,
         }
 
 
@@ -126,81 +139,88 @@ db.create_tables([Phone, Apk])
 
 
 # ----------------------------------- Views -----------------------------------
-@app.route('/')
+@app.route("/")
 def hello():
     phones = Phone.select()
     apks = {}
     for p in phones:
         apks[p.id] = len(Apk.select().join(Phone).where(Phone.id == p.id))
-    return render_template('index.html', phones=phones, apks=apks)
+    return render_template("index.html", phones=phones, apks=apks)
 
 
-@app.route('/phones/new', methods=['GET', 'POST'])
+@app.route("/phones/new", methods=["GET", "POST"])
 def phones_new():
     form = PhoneForm()
     if form.validate_on_submit():
         new_phone = Phone.create(name=form.name.data, model=form.model.data)
-        return redirect('/phones/{}'.format(new_phone.id))
-    return render_template('phones_new.html', form=form)
+        return redirect("/phones/{}".format(new_phone.id))
+    return render_template("phones_new.html", form=form)
 
 
-@app.route('/phones/<int:_id>')
+@app.route("/phones/<int:_id>")
 def phones_show(_id):
     phone = Phone.get(Phone.id == _id)
     apks = Apk.select().join(Phone).where(Phone.id == _id)
-    return render_template('phones_show.html', phone=phone, apks=apks)
+    return render_template("phones_show.html", phone=phone, apks=apks)
 
 
-@app.route('/apk/<int:_id>')
+@app.route("/apk/<int:_id>")
 def apk_show(_id):
     apk = Apk.get(Apk.id == _id)
     phone = apk.owner
-    return render_template('apk_show.html', phone=phone, apk=apk, sp=SUSPICIOUS_PERMISSIONS)
+    return render_template(
+        "apk_show.html", phone=phone, apk=apk, sp=SUSPICIOUS_PERMISSIONS
+    )
 
 
-@app.route('/apk/<int:_id>/status')
+@app.route("/apk/<int:_id>/status")
 def apk_status(_id):
     apk = Apk.get(Apk.id == _id)
-    status = request.args.get('status')
-    if status == 'good':
+    status = request.args.get("status")
+    if status == "good":
         apk.suspicious = False
-    elif status == 'bad':
+    elif status == "bad":
         apk.suspicious = True
     else:
         apk.suspicious = None
     apk.save()
-    redir = request.args.get('next')
+    redir = request.args.get("next")
     if redir is not None:
-        if redir == 'phone':
+        if redir == "phone":
             phone = apk.owner
-            return redirect('/phones/{}'.format(phone.id))
-        elif redir == 'json':
-            return 'All good'
-    return redirect('/apk/{}'.format(apk.id))
+            return redirect("/phones/{}".format(phone.id))
+        elif redir == "json":
+            return "All good"
+    return redirect("/apk/{}".format(apk.id))
 
 
-@app.route('/apk/<int:_id>/split_main')
+@app.route("/apk/<int:_id>/split_main")
 def apk_split_main(_id):
     apk = Apk.get(Apk.id == _id)
-    mains = Apk.select().join(Phone).where(
-        Phone.id == apk.owner.id,
-        Apk.split is False,
-        Apk.package_name == apk.package_name)
+    mains = (
+        Apk.select()
+        .join(Phone)
+        .where(
+            Phone.id == apk.owner.id,
+            Apk.split is False,
+            Apk.package_name == apk.package_name,
+        )
+    )
     if len(mains) == 1:
-        return redirect('/apk/{}'.format(mains[0].id))
+        return redirect("/apk/{}".format(mains[0].id))
     else:
         flash("Main apk not found")
-        return redirect('/apk/{}'.format(apk.id))
+        return redirect("/apk/{}".format(apk.id))
 
 
-@app.route('/apk/bulk_status', methods=['POST'])
+@app.route("/apk/bulk_status", methods=["POST"])
 def apk_bulk_status():
-    status = request.json['status']
-    apks = request.json['apks']
+    status = request.json["status"]
+    apks = request.json["apks"]
     if apks and status:
-        if status == 'good':
+        if status == "good":
             s = False
-        elif status == 'bad':
+        elif status == "bad":
             s = True
         else:
             s = None
@@ -210,6 +230,6 @@ def apk_bulk_status():
             if apk.suspicious != s:
                 apk.suspicious = s
                 apk.save()
-        return jsonify({'result': 'good'})
+        return jsonify({"result": "good"})
     else:
         return "Record not found", 400

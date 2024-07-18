@@ -92,7 +92,7 @@
 
                                                  {% if apk.vt_positives == 0 %}
                                                  <td><a href="{{apk.vt_link}}" target="_blank"><span class="badge badge-success">{{apk.vt_positives}} / {{apk.vt_total}}</span></a></td>
-                            {% elif p.vt_positives < 5 %}
+                            {% elif apk.vt_positives < 5 %}
                                 <td><a href="{{apk.vt_link}}" target="_blank"><span class="badge badge-warning">{{apk.vt_positives}} / {{apk.vt_total}}</span></a></td>
                             {% else %}
                                 <td><a href="{{apk.vt_link}}" target="_blank"><span class="badge badge-danger">{{apk.vt_positives}} / {{apk.vt_total}}</span></a></td>
